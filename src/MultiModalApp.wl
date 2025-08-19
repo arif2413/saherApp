@@ -31,6 +31,12 @@ TranscribeVideoToText::usage = "TranscribeVideoToText[video] extracts audio trac
 ExtractVideoMetadata::usage = "ExtractVideoMetadata[video] extracts video properties and metadata";
 AnalyzeVideoFrames::usage = "AnalyzeVideoFrames[video] analyzes key frames from video";
 
+(* Public function declarations - Step 6: Web Content Processing *)
+ProcessWebpageInput::usage = "ProcessWebpageInput[url] processes webpage URL with content extraction and analysis";
+FetchWebpageContent::usage = "FetchWebpageContent[url] fetches and extracts content from webpage URL";
+ParseHTMLContent::usage = "ParseHTMLContent[html] parses HTML content and extracts text and metadata";
+ValidateURL::usage = "ValidateURL[url] validates URL format and accessibility";
+
 Begin["`Private`"];
 
 (* Step 2: LLM Configuration and Initialization *)
@@ -504,6 +510,200 @@ ProcessVideoInput[video_] := Module[{transcriptResult, metadataResult, frameAnal
   |>
 ];
 
+(* Step 6: Web Content Processing Functions *)
+
+(* Validate URL format and basic accessibility *)
+ValidateURL[url_String] := Module[{urlObj, isValid},
+  (* Basic URL validation *)
+  isValid = Catch[
+    urlObj = URLParse[url];
+    (* Check if URL has proper structure *)
+    If[AssociationQ[urlObj] && KeyExistsQ[urlObj, "Scheme"] && KeyExistsQ[urlObj, "Domain"],
+      (* Check if scheme is http or https *)
+      If[MemberQ[{"http", "https"}, urlObj["Scheme"]],
+        True,
+        False
+      ],
+      False
+    ],
+    _,
+    False
+  ];
+  
+  <|
+    "isValid" -> isValid,
+    "url" -> url,
+    "parsed" -> If[isValid, URLParse[url], None],
+    "method" -> "URLValidation"
+  |>
+];
+
+(* Fetch and extract content from webpage URL *)
+FetchWebpageContent[url_String] := Module[{response, content, metadata},
+  (* Validate URL first *)
+  If[!ValidateURL[url]["isValid"],
+    Return[<|
+      "content" -> "",
+      "title" -> "",
+      "hasContent" -> False,
+      "error" -> "Invalid URL format",
+      "method" -> "WebContentFetch"
+    |>]
+  ];
+  
+  (* Attempt to fetch webpage content *)
+  response = Catch[
+    TimeConstrained[
+      URLRead[url],
+      10, (* 10 second timeout *)
+      $Failed
+    ],
+    _,
+    $Failed
+  ];
+  
+  (* Process the response *)
+  If[response === $Failed,
+    <|
+      "content" -> "",
+      "title" -> "",
+      "hasContent" -> False,
+      "error" -> "Failed to fetch webpage",
+      "method" -> "WebContentFetch"
+    |>,
+    (* Extract content from response *)
+    content = If[StringQ[response], response, ""];
+    <|
+      "content" -> content,
+      "title" -> "Webpage Content",
+      "hasContent" -> (content != ""),
+      "error" -> None,
+      "method" -> "WebContentFetch",
+      "contentLength" -> StringLength[content]
+    |>
+  ]
+];
+
+(* Parse HTML content and extract text and metadata *)
+ParseHTMLContent[html_String] := Module[{textContent, title, metadata},
+  (* Simple HTML parsing - extract text content *)
+  textContent = Catch[
+    Module[{cleanText},
+      (* Remove HTML tags using simple string manipulation *)
+      cleanText = StringReplace[html, {
+        RegularExpression["<script[^>]*>.*?</script>"] -> "",
+        RegularExpression["<style[^>]*>.*?</style>"] -> "",
+        RegularExpression["<[^>]*>"] -> " ",
+        RegularExpression["\\s+"] -> " "
+      }];
+      StringTrim[cleanText]
+    ],
+    _,
+    ""
+  ];
+  
+  (* Extract title if present *)
+  title = Catch[
+    If[StringContainsQ[html, "<title>"],
+      StringCases[html, RegularExpression["<title[^>]*>(.*?)</title>"] -> "$1"][[1]],
+      "Untitled Webpage"
+    ],
+    _,
+    "Untitled Webpage"
+  ];
+  
+  (* Return parsed content *)
+  <|
+    "extractedText" -> textContent,
+    "title" -> title,
+    "hasText" -> (textContent != ""),
+    "textLength" -> StringLength[textContent],
+    "wordCount" -> If[textContent != "", Length[StringSplit[textContent]], 0],
+    "method" -> "HTMLParsing"
+  |>
+];
+
+(* Comprehensive webpage processing combining fetching and parsing *)
+ProcessWebpageInput[url_String] := Module[{validationResult, fetchResult, parseResult, combinedDescription},
+  
+  (* Validate URL *)
+  validationResult = ValidateURL[url];
+  
+  If[!validationResult["isValid"],
+    Return[<|
+      "combinedDescription" -> "Invalid URL provided: " <> url,
+      "validationResult" -> validationResult,
+      "fetchResult" -> None,
+      "parseResult" -> None,
+      "hasContent" -> False,
+      "processedAt" -> Now
+    |>]
+  ];
+  
+  (* Fetch webpage content *)
+  fetchResult = FetchWebpageContent[url];
+  
+  If[!fetchResult["hasContent"],
+    Return[<|
+      "combinedDescription" -> "Unable to fetch content from URL: " <> url <> 
+        If[KeyExistsQ[fetchResult, "error"] && fetchResult["error"] != None, 
+          " (" <> fetchResult["error"] <> ")", ""],
+      "validationResult" -> validationResult,
+      "fetchResult" -> fetchResult,
+      "parseResult" -> None,
+      "hasContent" -> False,
+      "processedAt" -> Now
+    |>]
+  ];
+  
+  (* Parse HTML content *)
+  parseResult = ParseHTMLContent[fetchResult["content"]];
+  
+  (* Create combined description *)
+  combinedDescription = "";
+  
+  (* Add title if available *)
+  If[parseResult["title"] != "Untitled Webpage",
+    combinedDescription = "Webpage: " <> parseResult["title"];
+  ];
+  
+  (* Add text content summary *)
+  If[parseResult["hasText"],
+    Module[{textSummary},
+      textSummary = If[parseResult["textLength"] > 500,
+        StringTake[parseResult["extractedText"], 500] <> "...",
+        parseResult["extractedText"]
+      ];
+      
+      If[combinedDescription != "",
+        combinedDescription = combinedDescription <> ". Content: " <> textSummary,
+        combinedDescription = "Webpage content: " <> textSummary
+      ]
+    ]
+  ];
+  
+  (* Add word count info *)
+  If[parseResult["wordCount"] > 0,
+    combinedDescription = combinedDescription <> " (Word count: " <> 
+      ToString[parseResult["wordCount"]] <> ")"
+  ];
+  
+  (* If no useful information found *)
+  If[combinedDescription == "",
+    combinedDescription = "Webpage processed but no readable content found"
+  ];
+  
+  (* Return comprehensive analysis *)
+  <|
+    "combinedDescription" -> combinedDescription,
+    "validationResult" -> validationResult,
+    "fetchResult" -> fetchResult,
+    "parseResult" -> parseResult,
+    "hasContent" -> (parseResult["hasText"] && parseResult["wordCount"] > 0),
+    "processedAt" -> Now
+  |>
+];
+
 (* Step 1: Basic web form interface for multi-modal inputs *)
 CreateWebInterface[] := FormPage[
   {
@@ -571,13 +771,16 @@ ProcessUserInput[data_Association] := Module[
   (* Step 5: Process video input with transcription and frame analysis *)
   videoAnalysis = If[videoData =!= None, ProcessVideoInput[videoData], None];
   
+  (* Step 6: Process webpage URL with content extraction *)
+  webpageAnalysis = If[urlData =!= None && ToString[urlData] != "", ProcessWebpageInput[ToString[urlData]], None];
+  
   (* Prepare input data for LLM processing *)
   inputDataForLLM = <|
     "textInput" -> textData,
     "imageDescription" -> If[imageAnalysis =!= None, imageAnalysis["combinedDescription"], ""],
     "audioTranscript" -> If[audioAnalysis =!= None, audioAnalysis["combinedDescription"], ""],
     "videoContent" -> If[videoAnalysis =!= None, videoAnalysis["combinedDescription"], ""],
-    "webpageContent" -> If[urlData =!= None, "Webpage URL provided: " <> ToString[urlData] <> " (processing will be added in Step 6)", ""]
+    "webpageContent" -> If[webpageAnalysis =!= None, webpageAnalysis["combinedDescription"], ""]
   |>;
   
   (* Generate AI response if we have input *)
@@ -660,7 +863,19 @@ ProcessUserInput[data_Association] := Module[
           Nothing
         ],
         If[urlData =!= None, 
-          Row[{"Webpage URL: ", Hyperlink[urlData, urlData]}], 
+          Column[{
+            Row[{"Webpage URL: ", Hyperlink[urlData, urlData]}],
+            If[webpageAnalysis =!= None,
+              Column[{
+                Style["Content: " <> If[webpageAnalysis["parseResult"] =!= None && webpageAnalysis["parseResult"]["title"] != "Untitled Webpage",
+                  webpageAnalysis["parseResult"]["title"], "Webpage processed"], "Text", Gray],
+                Style["Word Count: " <> If[webpageAnalysis["parseResult"] =!= None,
+                  ToString[webpageAnalysis["parseResult"]["wordCount"]], "0"], "Text", Gray],
+                Style["Status: " <> If[webpageAnalysis["hasContent"], "Content extracted successfully", "No content extracted"], "Text", Gray]
+              }],
+              Style["Webpage processing in progress...", "Text", Gray]
+            ]
+          }], 
           Nothing
         ],
         ""
@@ -680,8 +895,8 @@ ProcessUserInput[data_Association] := Module[
     
     "",
     (* Status Section *)
-    Style["Step 5 Complete: Video Processing with Transcription & Frame Analysis Active", "Text", Green],
-    Style["Next: Steps 6-7 will add web scraping and event processing", "Text", Blue]
+    Style["Step 6 Complete: Web Content Processing & Scraping Active", "Text", Green],
+    Style["Next: Step 7 will add keyboard/mouse event processing", "Text", Blue]
   }];
   
   (* Return formatted result *)
