@@ -11,8 +11,8 @@ This is a multi-modal LLM assistant built entirely in Wolfram Language, designed
 ### Running Tests and Implementation
 
 ```mathematica
-(* Execute current implementation with tests *)
-Get["RunStep7.wl"]
+(* Execute current implementation with tests - Step 8 is latest *)
+Get["RunStep8.wl"]
 
 (* Run individual step tests *)
 Get["tests/Step1Test.wl"]
@@ -36,9 +36,16 @@ Step6Test`RunStep6Tests[]
 Get["tests/Step7Test.wl"]
 Step7Test`RunStep7Tests[]
 
+Get["tests/Step8Test.wl"]
+Step8Test`RunStep8Tests[]
+
 (* Test LLM functionality manually *)
 MultiModalApp`InitializeMasterLLM[]
 MultiModalApp`ProcessTextWithLLM[<|"textInput" -> "Hello AI assistant"|>]
+
+(* Test advanced LLM hierarchy (Step 8) *)
+MultiModalApp`InitializeLLMHierarchy[]
+MultiModalApp`ProcessWithLLMGraph[<|"textInput" -> "Test hierarchical processing"|>]
 
 (* Deploy to Wolfram Cloud *)
 MultiModalApp`DeployApp[]
@@ -47,17 +54,63 @@ MultiModalApp`DeployApp[]
 ### Development Workflow
 
 1. **Load Package**: `Get["src/MultiModalApp.wl"]`
-2. **Run Tests**: Execute step-specific test files
-3. **Validate**: All tests must pass before proceeding
+2. **Run Tests**: Execute step-specific test files using `RunStep{N}.wl`
+3. **Validate**: All tests must pass before proceeding to next step
 4. **Deploy**: Use `MultiModalApp`DeployApp[]` for cloud deployment
+
+### Step Execution Pattern
+
+Each step follows a standardized execution pattern via `RunStep{N}.wl` files:
+
+```mathematica
+(* Example: RunStep8.wl *)
+Get["src/MultiModalApp.wl"];           (* Load main package *)
+Get["tests/Step1Test.wl"];             (* Load all test packages *)
+(* ... load other test files ... *)
+
+(* Sequential validation: Each step tests all previous steps first *)
+step1Passed = Step1Test`RunStep1Tests[];
+If[step1Passed,
+  step2Passed = Step2Test`RunStep2Tests[];
+  (* ... continue through all steps ... *)
+];
+
+(* Only proceed if all foundation steps pass *)
+If[allPreviousStepsPassed,
+  stepNPassed = StepNTest`RunStepNTests[];
+  (* Display results and next steps *)
+];
+```
+
+This ensures **incremental validation** - each step verifies all previous functionality still works.
 
 ## Architecture Overview
 
 ### Core Package Structure
 
 - **`src/MultiModalApp.wl`**: Main package containing all functionality across implementation steps
-- **`tests/Step{N}Test.wl`**: Comprehensive test suites for each implementation step
+- **`tests/Step{N}Test.wl`**: Comprehensive test suites for each implementation step  
 - **`RunStep{N}.wl`**: Step runners that load packages, run tests, and provide progress feedback
+- **`Step{N}ValidationReport.md`**: Generated validation reports with detailed test results and status
+
+### File Organization
+
+```
+SaherApp/
+├── src/
+│   └── MultiModalApp.wl          # Main application package with all functions
+├── tests/
+│   ├── Step1Test.wl              # Web infrastructure tests
+│   ├── Step2Test.wl              # LLM integration tests  
+│   ├── Step3Test.wl              # Image processing tests
+│   ├── Step4Test.wl              # Audio processing tests
+│   ├── Step5Test.wl              # Video processing tests
+│   ├── Step6Test.wl              # Web content processing tests
+│   ├── Step7Test.wl              # Event processing tests
+│   └── Step8Test.wl              # Advanced LLM architecture tests
+├── RunStep1.wl through RunStep8.wl  # Step execution scripts
+└── CLAUDE.md                     # This documentation file
+```
 
 ### Multi-Modal Processing Pipeline
 
@@ -117,8 +170,16 @@ The system follows a standardized input → text conversion → LLM processing w
 - `ParseMouseEvents[eventText]`: Mouse event parsing and interaction tracking
 - `AnalyzeEventPatterns[events]`: User interaction pattern analysis and complexity assessment
 
+**Step 8 - Advanced LLM Architecture (Master-Slave Setup)**:
+- `InitializeLLMHierarchy[]`: Initialize Master-Slave LLM architecture with specialized roles
+- `CreateSpecializedSlaves[]`: Create specialized slave LLMs for different domains (text, image, audio, video, web, event)
+- `BuildLLMGraph[inputData]`: Build LLMGraph for orchestrated multi-modal processing
+- `DelegateTasks[tasks]`: Delegate tasks to appropriate specialized slave LLMs
+- `ProcessWithLLMGraph[inputData]`: Process input through complete LLMGraph hierarchy
+- `CoordinateSlaveResponses[responses]`: Coordinate and synthesize responses from multiple slave LLMs
+
 **Future Steps**:
-- Steps 8-12: Advanced LLM architecture (Master-Slave, LLMGraph, tools, memory, RAG)
+- Steps 9-12: LLMGraph tools integration, memory management, RAG implementation
 - Steps 13-16: Advanced features (async processing, modularity, error handling, security)
 - Steps 17-20: Testing and optimization
 
@@ -194,6 +255,26 @@ allPassed = And @@ testResults;
 - Empty URL handling
 - Error handling
 
+**Step 7 Tests** (`Step7Test`):
+- Keyboard event parsing and analysis
+- Mouse event parsing and interaction tracking
+- User interaction pattern recognition
+- Event complexity assessment
+- Event-LLM integration
+- Display formatting
+- Empty event handling
+- Error handling
+
+**Step 8 Tests** (`Step8Test`):
+- LLM hierarchy initialization
+- Specialized slave LLM creation (text, image, audio, video, web, event slaves)
+- LLMGraph construction and orchestration
+- Task delegation to appropriate slaves
+- LLMGraph processing framework
+- Slave response coordination and synthesis
+- Hierarchical integration with multi-modal pipeline
+- Advanced error handling across LLM architecture
+
 ## Implementation Notes
 
 ### Package Loading Pattern
@@ -231,6 +312,7 @@ EndPackage[];
 ✅ **Step 4**: Audio Processing with Speech-to-Text - Complete
 ✅ **Step 5**: Video Processing with Transcription & Frame Analysis - Complete
 ✅ **Step 6**: Web Content Processing & Scraping - Complete
-🔄 **Step 7**: Keyboard/Mouse Event Processing - Next
+✅ **Step 7**: Keyboard/Mouse Event Processing - Complete
+🔄 **Step 8**: Advanced LLM Architecture (Master-Slave Setup) - Current
 
-The system now handles text, image, audio, video, and web content inputs through a Master LLM with comprehensive web interface and testing infrastructure. Web content processing includes URL validation, content fetching, HTML parsing, and text extraction. Advanced LLM orchestration capabilities will be added incrementally through the remaining 14 implementation steps.
+The system now handles all major multi-modal inputs (text, image, audio, video, web content, and user events) through a comprehensive web interface with testing infrastructure. Step 8 introduces advanced LLM architecture with Master-Slave hierarchy using LLMGraph orchestration for specialized domain processing. Steps 9-20 will add tools integration, memory management, RAG, async processing, security, and optimization.

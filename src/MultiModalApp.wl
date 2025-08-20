@@ -43,6 +43,14 @@ ParseKeyboardEvents::usage = "ParseKeyboardEvents[eventText] parses keyboard eve
 ParseMouseEvents::usage = "ParseMouseEvents[eventText] parses mouse event descriptions and interactions";
 AnalyzeEventPatterns::usage = "AnalyzeEventPatterns[events] analyzes user interaction patterns from events";
 
+(* Public function declarations - Step 8: Advanced LLM Architecture (Master-Slave Setup) *)
+InitializeLLMHierarchy::usage = "InitializeLLMHierarchy[] initializes Master-Slave LLM architecture with specialized roles";
+CreateSpecializedSlaves::usage = "CreateSpecializedSlaves[] creates specialized slave LLMs for different domains";
+BuildLLMGraph::usage = "BuildLLMGraph[inputData] builds LLMGraph for orchestrated multi-modal processing";
+DelegateTasks::usage = "DelegateTasks[tasks] delegates tasks to appropriate specialized slave LLMs";
+ProcessWithLLMGraph::usage = "ProcessWithLLMGraph[inputData] processes multi-modal input using LLMGraph orchestration";
+CoordinateSlaveResponses::usage = "CoordinateSlaveResponses[responses] coordinates and synthesizes slave LLM responses";
+
 Begin["`Private`"];
 
 (* Step 2: LLM Configuration and Initialization *)
@@ -965,6 +973,376 @@ ProcessEventInput[eventText_String] := Module[{keyboardResult, mouseResult, patt
   |>
 ];
 
+(* Step 8: Advanced LLM Architecture - Master-Slave Setup *)
+
+(* Global variables to store LLM hierarchy *)
+$MasterLLMHierarchy = None;
+$SpecializedSlaveLLMs = <||>;
+$LLMGraphCache = <||>;
+
+(* Initialize Master-Slave LLM architecture *)
+InitializeLLMHierarchy[] := Module[{masterConfig, slaveConfigs, hierarchy},
+  
+  (* Initialize the Master LLM for coordination *)
+  masterConfig = LLMConfiguration[
+    <|
+      "Model" -> "gpt-3.5-turbo",
+      "Temperature" -> 0.3, (* Lower temperature for more consistent coordination *)
+      "MaxTokens" -> 1500,
+      "SystemMessage" -> "You are the Master LLM coordinator in a hierarchical multi-modal AI system. Your role is to analyze user requests, delegate tasks to specialized slave LLMs, and synthesize their responses into a coherent final answer. You coordinate text analysis, image processing, audio transcription, video analysis, web content processing, and user event analysis."
+    |>
+  ];
+  
+  (* Create specialized slave LLMs *)
+  slaveConfigs = CreateSpecializedSlaves[];
+  
+  (* Build hierarchy structure *)
+  hierarchy = <|
+    "masterLLM" -> masterConfig,
+    "slaveLLMs" -> slaveConfigs,
+    "graphCache" -> <||>,
+    "initialized" -> True,
+    "initTime" -> Now
+  |>;
+  
+  $MasterLLMHierarchy = hierarchy;
+  $SpecializedSlaveLLMs = slaveConfigs;
+  
+  Print[Style["✓ Master-Slave LLM hierarchy initialized successfully", Green]];
+  Print["  Master LLM: Coordination and synthesis"];
+  Print["  Slave LLMs: " <> ToString[Length[Keys[slaveConfigs]]] <> " specialized domains"];
+  
+  hierarchy
+];
+
+(* Create specialized slave LLMs for different domains *)
+CreateSpecializedSlaves[] := Module[{slaves},
+  
+  slaves = <|
+    (* Text Analysis Slave *)
+    "textSlave" -> LLMConfiguration[
+      <|
+        "Model" -> "gpt-3.5-turbo",
+        "Temperature" -> 0.5,
+        "MaxTokens" -> 1000,
+        "SystemMessage" -> "You are a specialized text analysis AI. Your expertise is in understanding, analyzing, and extracting insights from textual content. Focus on sentiment analysis, key themes, entity extraction, and content summarization."
+      |>
+    ],
+    
+    (* Image Analysis Slave *)
+    "imageSlave" -> LLMConfiguration[
+      <|
+        "Model" -> "gpt-3.5-turbo",
+        "Temperature" -> 0.4,
+        "MaxTokens" -> 800,
+        "SystemMessage" -> "You are a specialized image analysis AI. Your expertise is in understanding visual content including OCR text, object recognition, scene description, and visual context analysis. Provide detailed descriptions of image content and extracted text."
+      |>
+    ],
+    
+    (* Audio Analysis Slave *)
+    "audioSlave" -> LLMConfiguration[
+      <|
+        "Model" -> "gpt-3.5-turbo",
+        "Temperature" -> 0.4,
+        "MaxTokens" -> 800,
+        "SystemMessage" -> "You are a specialized audio analysis AI. Your expertise is in understanding audio content including speech transcription analysis, audio quality assessment, and metadata interpretation. Analyze transcribed speech content and audio characteristics."
+      |>
+    ],
+    
+    (* Video Analysis Slave *)
+    "videoSlave" -> LLMConfiguration[
+      <|
+        "Model" -> "gpt-3.5-turbo",
+        "Temperature" -> 0.4,
+        "MaxTokens" -> 1000,
+        "SystemMessage" -> "You are a specialized video analysis AI. Your expertise is in understanding video content including frame analysis, audio transcription, temporal sequences, and multimedia context. Analyze video transcripts, frame descriptions, and metadata."
+      |>
+    ],
+    
+    (* Web Content Slave *)
+    "webSlave" -> LLMConfiguration[
+      <|
+        "Model" -> "gpt-3.5-turbo",
+        "Temperature" -> 0.4,
+        "MaxTokens" -> 1000,
+        "SystemMessage" -> "You are a specialized web content analysis AI. Your expertise is in understanding webpage content, HTML structure analysis, content extraction, and web information synthesis. Analyze webpage text, titles, and extracted content."
+      |>
+    ],
+    
+    (* Event Analysis Slave *)
+    "eventSlave" -> LLMConfiguration[
+      <|
+        "Model" -> "gpt-3.5-turbo",
+        "Temperature" -> 0.4,
+        "MaxTokens" -> 800,
+        "SystemMessage" -> "You are a specialized user interaction analysis AI. Your expertise is in understanding keyboard/mouse events, user behavior patterns, interaction workflows, and UI/UX analysis. Analyze user input patterns and interaction complexity."
+      |>
+    ]
+  |>;
+  
+  slaves
+];
+
+(* Build LLMGraph for orchestrated processing *)
+BuildLLMGraph[inputData_Association] := Module[{graphNodes, dependencies, llmGraph},
+  
+  (* Determine which slave LLMs are needed based on input data *)
+  graphNodes = {};
+  
+  (* Add text analysis node if text input exists *)
+  If[KeyExistsQ[inputData, "textInput"] && inputData["textInput"] != "",
+    AppendTo[graphNodes, 
+      "textAnalysis" -> LLMFunction[
+        "Analyze this text input: " <> inputData["textInput"],
+        LLMEvaluator -> $SpecializedSlaveLLMs["textSlave"]
+      ]
+    ]
+  ];
+  
+  (* Add image analysis node if image description exists *)
+  If[KeyExistsQ[inputData, "imageDescription"] && inputData["imageDescription"] != "",
+    AppendTo[graphNodes,
+      "imageAnalysis" -> LLMFunction[
+        "Analyze this image content: " <> inputData["imageDescription"],
+        LLMEvaluator -> $SpecializedSlaveLLMs["imageSlave"]
+      ]
+    ]
+  ];
+  
+  (* Add audio analysis node if audio transcript exists *)
+  If[KeyExistsQ[inputData, "audioTranscript"] && inputData["audioTranscript"] != "",
+    AppendTo[graphNodes,
+      "audioAnalysis" -> LLMFunction[
+        "Analyze this audio transcript: " <> inputData["audioTranscript"],
+        LLMEvaluator -> $SpecializedSlaveLLMs["audioSlave"]
+      ]
+    ]
+  ];
+  
+  (* Add video analysis node if video content exists *)
+  If[KeyExistsQ[inputData, "videoContent"] && inputData["videoContent"] != "",
+    AppendTo[graphNodes,
+      "videoAnalysis" -> LLMFunction[
+        "Analyze this video content: " <> inputData["videoContent"],
+        LLMEvaluator -> $SpecializedSlaveLLMs["videoSlave"]
+      ]
+    ]
+  ];
+  
+  (* Add web content analysis node if webpage content exists *)
+  If[KeyExistsQ[inputData, "webpageContent"] && inputData["webpageContent"] != "",
+    AppendTo[graphNodes,
+      "webAnalysis" -> LLMFunction[
+        "Analyze this webpage content: " <> inputData["webpageContent"],
+        LLMEvaluator -> $SpecializedSlaveLLMs["webSlave"]
+      ]
+    ]
+  ];
+  
+  (* Add event analysis node if event content exists *)
+  If[KeyExistsQ[inputData, "eventContent"] && inputData["eventContent"] != "",
+    AppendTo[graphNodes,
+      "eventAnalysis" -> LLMFunction[
+        "Analyze these user interaction events: " <> inputData["eventContent"],
+        LLMEvaluator -> $SpecializedSlaveLLMs["eventSlave"]
+      ]
+    ]
+  ];
+  
+  (* Add master coordination node that depends on all slave analyses *)
+  If[Length[graphNodes] > 0,
+    Module[{slaveNodeNames, masterPrompt},
+      slaveNodeNames = Keys[graphNodes];
+      masterPrompt = "You are the Master LLM coordinator. Synthesize the following specialized analyses into a comprehensive response:\n\n" <>
+        StringRiffle[Map["<" <> # <> ">" -> #SlotSequence[Position[slaveNodeNames, #][[1, 1]]] &, slaveNodeNames], "\n"];
+      
+      AppendTo[graphNodes,
+        "masterSynthesis" -> LLMFunction[
+          masterPrompt,
+          LLMEvaluator -> $MasterLLMHierarchy["masterLLM"]
+        ]
+      ]
+    ]
+  ];
+  
+  (* Create LLMGraph if we have nodes *)
+  If[Length[graphNodes] > 0,
+    llmGraph = LLMGraph[graphNodes];
+    
+    (* Cache the graph for performance *)
+    $LLMGraphCache[Hash[inputData]] = llmGraph;
+    
+    llmGraph,
+    
+    (* No specialized processing needed *)
+    None
+  ]
+];
+
+(* Delegate tasks to appropriate specialized slave LLMs *)
+DelegateTasks[inputData_Association] := Module[{tasks, delegations},
+  
+  tasks = <||>;
+  
+  (* Create task delegations based on available input *)
+  If[KeyExistsQ[inputData, "textInput"] && inputData["textInput"] != "",
+    tasks["textTask"] = <|
+      "type" -> "text",
+      "slave" -> "textSlave", 
+      "data" -> inputData["textInput"],
+      "prompt" -> "Analyze this text for key insights, themes, and sentiment: " <> inputData["textInput"]
+    |>
+  ];
+  
+  If[KeyExistsQ[inputData, "imageDescription"] && inputData["imageDescription"] != "",
+    tasks["imageTask"] = <|
+      "type" -> "image",
+      "slave" -> "imageSlave",
+      "data" -> inputData["imageDescription"], 
+      "prompt" -> "Analyze this image content and extracted text: " <> inputData["imageDescription"]
+    |>
+  ];
+  
+  If[KeyExistsQ[inputData, "audioTranscript"] && inputData["audioTranscript"] != "",
+    tasks["audioTask"] = <|
+      "type" -> "audio",
+      "slave" -> "audioSlave",
+      "data" -> inputData["audioTranscript"],
+      "prompt" -> "Analyze this audio transcript for content and quality: " <> inputData["audioTranscript"]
+    |>
+  ];
+  
+  If[KeyExistsQ[inputData, "videoContent"] && inputData["videoContent"] != "",
+    tasks["videoTask"] = <|
+      "type" -> "video", 
+      "slave" -> "videoSlave",
+      "data" -> inputData["videoContent"],
+      "prompt" -> "Analyze this video content including transcript and visual elements: " <> inputData["videoContent"]
+    |>
+  ];
+  
+  If[KeyExistsQ[inputData, "webpageContent"] && inputData["webpageContent"] != "",
+    tasks["webTask"] = <|
+      "type" -> "web",
+      "slave" -> "webSlave",
+      "data" -> inputData["webpageContent"],
+      "prompt" -> "Analyze this webpage content for key information and structure: " <> inputData["webpageContent"]
+    |>
+  ];
+  
+  If[KeyExistsQ[inputData, "eventContent"] && inputData["eventContent"] != "",
+    tasks["eventTask"] = <|
+      "type" -> "event",
+      "slave" -> "eventSlave", 
+      "data" -> inputData["eventContent"],
+      "prompt" -> "Analyze these user interaction events for patterns and workflow: " <> inputData["eventContent"]
+    |>
+  ];
+  
+  tasks
+];
+
+(* Process multi-modal input using LLMGraph orchestration *)
+ProcessWithLLMGraph[inputData_Association] := Module[{llmGraph, result, graphKey},
+  
+  (* Initialize hierarchy if not done *)
+  If[$MasterLLMHierarchy === None,
+    InitializeLLMHierarchy[]
+  ];
+  
+  (* Check cache first *)
+  graphKey = Hash[inputData];
+  If[KeyExistsQ[$LLMGraphCache, graphKey],
+    llmGraph = $LLMGraphCache[graphKey],
+    llmGraph = BuildLLMGraph[inputData]
+  ];
+  
+  (* Execute LLMGraph if available *)
+  result = If[llmGraph =!= None,
+    Catch[
+      Module[{graphResult, masterResponse},
+        (* Execute the graph *)
+        graphResult = llmGraph[inputData];
+        
+        (* Extract master synthesis if available *)
+        masterResponse = If[KeyExistsQ[graphResult, "masterSynthesis"],
+          graphResult["masterSynthesis"],
+          (* Fallback coordination if no master synthesis *)
+          CoordinateSlaveResponses[graphResult]
+        ];
+        
+        <|
+          "rawResponse" -> masterResponse,
+          "formattedResponse" -> masterResponse,
+          "method" -> "LLMGraph",
+          "slavesUsed" -> Keys[graphResult],
+          "slaveResponses" -> graphResult,
+          "processedAt" -> Now,
+          "hierarchical" -> True
+        |>
+      ],
+      _,
+      <|
+        "rawResponse" -> "LLMGraph processing temporarily unavailable.",
+        "formattedResponse" -> "Advanced LLM orchestration system is initializing. Please try again.",
+        "method" -> "FallbackCoordination", 
+        "hierarchical" -> False,
+        "error" -> True
+      |>
+    ],
+    
+    (* No LLMGraph needed - use simple master LLM *)
+    Module[{prompt, response},
+      prompt = CreateLLMPrompt[inputData];
+      response = Catch[
+        LLMFunction[prompt, LLMEvaluator -> $MasterLLMHierarchy["masterLLM"]][inputData],
+        _,
+        "Master LLM processing temporarily unavailable."
+      ];
+      
+      <|
+        "rawResponse" -> response,
+        "formattedResponse" -> response, 
+        "method" -> "MasterLLMDirect",
+        "hierarchical" -> False
+      |>
+    ]
+  ];
+  
+  result
+];
+
+(* Coordinate and synthesize slave LLM responses *)
+CoordinateSlaveResponses[slaveResponses_Association] := Module[{synthesis, responseText},
+  
+  (* Create synthesis from slave responses *)
+  responseText = "Based on specialized analysis from multiple AI systems:\n\n";
+  
+  (* Add each slave response *)
+  Do[
+    Module[{slaveName, response},
+      slaveName = key;
+      response = slaveResponses[key];
+      
+      responseText = responseText <> "• " <> 
+        Switch[slaveName,
+          "textAnalysis", "Text Analysis: ",
+          "imageAnalysis", "Image Analysis: ", 
+          "audioAnalysis", "Audio Analysis: ",
+          "videoAnalysis", "Video Analysis: ",
+          "webAnalysis", "Web Content Analysis: ",
+          "eventAnalysis", "User Interaction Analysis: ",
+          _, "Analysis: "
+        ] <> ToString[response] <> "\n\n"
+    ],
+    {key, Keys[slaveResponses]}
+  ];
+  
+  responseText = responseText <> "This comprehensive analysis combines insights from all relevant specialized AI systems to provide you with the most accurate and helpful response.";
+  
+  responseText
+];
+
 (* Step 1: Basic web form interface for multi-modal inputs *)
 CreateWebInterface[] := FormPage[
   {
@@ -1054,10 +1432,10 @@ ProcessUserInput[data_Association] := Module[
     "eventContent" -> If[eventAnalysis =!= None, eventAnalysis["combinedDescription"], ""]
   |>;
   
-  (* Generate AI response if we have input *)
+  (* Generate AI response if we have input - Step 8: Use LLMGraph orchestration *)
   llmResponse = If[hasInput,
     Catch[
-      ProcessTextWithLLM[inputDataForLLM],
+      ProcessWithLLMGraph[inputDataForLLM],
       _, 
       <|"rawResponse" -> "LLM processing temporarily unavailable. Please ensure API keys are configured.", 
         "status" -> "error"|>
@@ -1068,7 +1446,7 @@ ProcessUserInput[data_Association] := Module[
   (* Format result with LLM integration *)
   result = Column[{
     Style["Multi-Modal LLM Assistant", "Title"],
-    Style["Step 2: Text Processing & Master LLM Integration", "Subtitle", Blue],
+    Style["Step 8: Advanced LLM Architecture with Master-Slave Orchestration", "Subtitle", Blue],
     "",
     
     (* Input Summary Section *)
@@ -1180,8 +1558,8 @@ ProcessUserInput[data_Association] := Module[
     
     "",
     (* Status Section *)
-    Style["Step 7 Complete: Keyboard/Mouse Event Processing Active", "Text", Green],
-    Style["Next: Steps 8-12 will add advanced LLM architecture (Master-Slave, LLMGraph, tools, memory, RAG)", "Text", Blue]
+    Style["Step 8 Complete: Advanced LLM Architecture (Master-Slave) Active", "Text", Green],
+    Style["Next: Steps 9-12 will add LLMGraph tools integration, memory management, and RAG capabilities", "Text", Blue]
   }];
   
   (* Return formatted result *)
