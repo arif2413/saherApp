@@ -59,6 +59,16 @@ ProcessWithTools::usage = "ProcessWithTools[inputData] processes input through t
 ExecuteComputationalTask::usage = "ExecuteComputationalTask[taskType, parameters] executes Wolfram computational tasks";
 CoordinateToolResults::usage = "CoordinateToolResults[toolResults, llmResponses] coordinates computational and LLM results";
 
+(* Public function declarations - Step 10: Memory Management & Conversation Context *)
+InitializeMemorySystem::usage = "InitializeMemorySystem[] initializes conversation memory and context management";
+StoreConversationMemory::usage = "StoreConversationMemory[inputData, response] stores conversation interaction in memory";
+RetrieveConversationHistory::usage = "RetrieveConversationHistory[limit] retrieves recent conversation history";
+AnalyzeConversationContext::usage = "AnalyzeConversationContext[currentInput] analyzes current input against conversation context";
+BuildMemoryEnhancedLLMGraph::usage = "BuildMemoryEnhancedLLMGraph[inputData, context] builds LLMGraph with conversation memory integration";
+ProcessWithMemory::usage = "ProcessWithMemory[inputData] processes input with conversation context and memory";
+ManageConversationContext::usage = "ManageConversationContext[interactions] manages and optimizes conversation context";
+SummarizeConversationMemory::usage = "SummarizeConversationMemory[memoryEntries] creates conversation summary for context optimization";
+
 Begin["`Private`"];
 
 (* Step 2: LLM Configuration and Initialization *)
@@ -1793,6 +1803,427 @@ CoordinateToolResults[toolResults_List, llmResponses_Association] := Module[{coo
   responseText
 ];
 
+(* Step 10: Memory Management & Conversation Context *)
+
+(* Global variables for memory management *)
+$ConversationMemory = {};
+$MemorySystemInitialized = False;
+$MemoryConfiguration = <||>;
+$ConversationContext = <||>;
+$MemoryOptimizationCache = <||>;
+
+(* Initialize conversation memory and context management system *)
+InitializeMemorySystem[] := Module[{initResult, config},
+  
+  (* Initialize memory configuration *)
+  config = <|
+    "maxMemoryEntries" -> 100,
+    "contextWindowSize" -> 10,
+    "summarizationThreshold" -> 50,
+    "memoryRetentionDays" -> 30,
+    "contextRelevanceThreshold" -> 0.7,
+    "enableAutoSummarization" -> True,
+    "enableContextOptimization" -> True
+  |>;
+  
+  (* Reset memory systems *)
+  $ConversationMemory = {};
+  $ConversationContext = <|
+    "currentSession" -> CreateUUID[],
+    "startTime" -> Now,
+    "totalInteractions" -> 0,
+    "lastInteractionTime" -> None,
+    "contextSummary" -> "",
+    "activeTopics" -> {},
+    "userPreferences" -> <||>
+  |>;
+  $MemoryConfiguration = config;
+  $MemorySystemInitialized = True;
+  $MemoryOptimizationCache = <||>;
+  
+  initResult = <|
+    "initialized" -> True,
+    "sessionId" -> $ConversationContext["currentSession"],
+    "maxEntries" -> config["maxMemoryEntries"],
+    "contextWindow" -> config["contextWindowSize"],
+    "initTime" -> Now,
+    "memoryEmpty" -> True
+  |>;
+  
+  Print[Style["✓ Memory Management & Conversation Context initialized successfully", Green]];
+  Print["  Session ID: " <> $ConversationContext["currentSession"]];
+  Print["  Max memory entries: " <> ToString[config["maxMemoryEntries"]]];
+  Print["  Context window size: " <> ToString[config["contextWindowSize"]]];
+  
+  initResult
+];
+
+(* Store conversation interaction in memory *)
+StoreConversationMemory[inputData_Association, response_Association] := Module[{memoryEntry, timestamp, inputSummary},
+  
+  (* Initialize if not done *)
+  If[!$MemorySystemInitialized, InitializeMemorySystem[]];
+  
+  timestamp = Now;
+  
+  (* Create comprehensive input summary *)
+  inputSummary = <|
+    "textInput" -> If[KeyExistsQ[inputData, "textInput"] && inputData["textInput"] != "", 
+                     StringTake[inputData["textInput"], UpTo[200]], ""],
+    "hasImage" -> KeyExistsQ[inputData, "imageDescription"] && inputData["imageDescription"] != "",
+    "hasAudio" -> KeyExistsQ[inputData, "audioTranscript"] && inputData["audioTranscript"] != "",
+    "hasVideo" -> KeyExistsQ[inputData, "videoContent"] && inputData["videoContent"] != "",
+    "hasWebContent" -> KeyExistsQ[inputData, "webpageContent"] && inputData["webpageContent"] != "",
+    "hasEvents" -> KeyExistsQ[inputData, "eventContent"] && inputData["eventContent"] != "",
+    "inputTypes" -> Select[{"text", "image", "audio", "video", "web", "events"}, 
+      Function[type, 
+        Switch[type,
+          "text", KeyExistsQ[inputData, "textInput"] && inputData["textInput"] != "",
+          "image", KeyExistsQ[inputData, "imageDescription"] && inputData["imageDescription"] != "",
+          "audio", KeyExistsQ[inputData, "audioTranscript"] && inputData["audioTranscript"] != "",
+          "video", KeyExistsQ[inputData, "videoContent"] && inputData["videoContent"] != "",
+          "web", KeyExistsQ[inputData, "webpageContent"] && inputData["webpageContent"] != "",
+          "events", KeyExistsQ[inputData, "eventContent"] && inputData["eventContent"] != "",
+          _, False
+        ]
+      ]]
+  |>;
+  
+  (* Create memory entry *)
+  memoryEntry = <|
+    "id" -> CreateUUID[],
+    "timestamp" -> timestamp,
+    "sessionId" -> $ConversationContext["currentSession"],
+    "interactionNumber" -> $ConversationContext["totalInteractions"] + 1,
+    "inputSummary" -> inputSummary,
+    "fullInput" -> inputData,
+    "response" -> response,
+    "processingMethod" -> If[KeyExistsQ[response, "method"], response["method"], "Unknown"],
+    "toolsUsed" -> If[KeyExistsQ[response, "toolsUsed"], response["toolsUsed"], {}],
+    "contextRelevance" -> 1.0, (* Start with full relevance *)
+    "memoryWeight" -> 1.0,
+    "topics" -> ExtractTopicsFromInput[inputData]
+  |>;
+  
+  (* Add to memory *)
+  AppendTo[$ConversationMemory, memoryEntry];
+  
+  (* Update conversation context *)
+  $ConversationContext["totalInteractions"] = $ConversationContext["totalInteractions"] + 1;
+  $ConversationContext["lastInteractionTime"] = timestamp;
+  $ConversationContext["activeTopics"] = Union[$ConversationContext["activeTopics"], 
+                                              memoryEntry["topics"]];
+  
+  (* Manage memory size *)
+  If[Length[$ConversationMemory] > $MemoryConfiguration["maxMemoryEntries"],
+    (* Summarize older entries if auto-summarization enabled *)
+    If[$MemoryConfiguration["enableAutoSummarization"] && 
+       Length[$ConversationMemory] > $MemoryConfiguration["summarizationThreshold"],
+      SummarizeOldMemoryEntries[]
+    ];
+    
+    (* Remove oldest entries *)
+    $ConversationMemory = TakeLargest[$ConversationMemory, 
+                                     $MemoryConfiguration["maxMemoryEntries"], 
+                                     #["timestamp"] &]
+  ];
+  
+  memoryEntry["id"]
+];
+
+(* Extract topics from input data for context management *)
+ExtractTopicsFromInput[inputData_Association] := Module[{topics, textContent},
+  
+  topics = {};
+  
+  (* Extract from text input *)
+  If[KeyExistsQ[inputData, "textInput"] && inputData["textInput"] != "",
+    textContent = inputData["textInput"];
+    
+    (* Simple topic extraction using keyword detection *)
+    If[StringContainsQ[textContent, RegularExpression["\\b(math|calculate|solve|equation)\\b"], IgnoreCase -> True],
+      AppendTo[topics, "mathematics"]];
+    If[StringContainsQ[textContent, RegularExpression["\\b(data|statistics|analysis|correlation)\\b"], IgnoreCase -> True],
+      AppendTo[topics, "data-analysis"]];
+    If[StringContainsQ[textContent, RegularExpression["\\b(image|picture|photo|visual)\\b"], IgnoreCase -> True],
+      AppendTo[topics, "image-processing"]];
+    If[StringContainsQ[textContent, RegularExpression["\\b(audio|sound|music|voice)\\b"], IgnoreCase -> True],
+      AppendTo[topics, "audio-processing"]];
+    If[StringContainsQ[textContent, RegularExpression["\\b(video|movie|clip|animation)\\b"], IgnoreCase -> True],
+      AppendTo[topics, "video-processing"]];
+    If[StringContainsQ[textContent, RegularExpression["\\b(web|website|url|page)\\b"], IgnoreCase -> True],
+      AppendTo[topics, "web-content"]];
+  ];
+  
+  (* Add topics based on input types *)
+  If[KeyExistsQ[inputData, "imageDescription"] && inputData["imageDescription"] != "",
+    AppendTo[topics, "image-processing"]];
+  If[KeyExistsQ[inputData, "audioTranscript"] && inputData["audioTranscript"] != "",
+    AppendTo[topics, "audio-processing"]];
+  If[KeyExistsQ[inputData, "videoContent"] && inputData["videoContent"] != "",
+    AppendTo[topics, "video-processing"]];
+  If[KeyExistsQ[inputData, "webpageContent"] && inputData["webpageContent"] != "",
+    AppendTo[topics, "web-content"]];
+  If[KeyExistsQ[inputData, "eventContent"] && inputData["eventContent"] != "",
+    AppendTo[topics, "user-interaction"]];
+  
+  If[Length[topics] == 0, {"general-query"}, DeleteDuplicates[topics]]
+];
+
+(* Retrieve recent conversation history *)
+RetrieveConversationHistory[limit_Integer: 10] := Module[{recentEntries, contextWindow},
+  
+  (* Initialize if not done *)
+  If[!$MemorySystemInitialized, InitializeMemorySystem[]];
+  
+  (* Get recent entries within context window *)
+  contextWindow = Min[limit, $MemoryConfiguration["contextWindowSize"]];
+  recentEntries = TakeLargest[$ConversationMemory, contextWindow, #["timestamp"] &];
+  
+  (* Sort by timestamp for chronological order *)
+  SortBy[recentEntries, #["timestamp"] &]
+];
+
+(* Analyze current input against conversation context *)
+AnalyzeConversationContext[currentInput_Association] := Module[{recentHistory, contextAnalysis, topicOverlap, referenceDetection},
+  
+  (* Initialize if not done *)
+  If[!$MemorySystemInitialized, InitializeMemorySystem[]];
+  
+  recentHistory = RetrieveConversationHistory[];
+  
+  (* Analyze topic continuity *)
+  topicOverlap = If[Length[recentHistory] > 0,
+    Module[{currentTopics, recentTopics},
+      currentTopics = ExtractTopicsFromInput[currentInput];
+      recentTopics = Flatten[#["topics"] & /@ recentHistory];
+      Length[Intersection[currentTopics, recentTopics]] / Length[Union[currentTopics, recentTopics]]
+    ],
+    0.0
+  ];
+  
+  (* Detect references to previous interactions *)
+  referenceDetection = If[KeyExistsQ[currentInput, "textInput"] && currentInput["textInput"] != "",
+    StringContainsQ[currentInput["textInput"], 
+      RegularExpression["\\b(previous|before|earlier|last|again|that|it|this)\\b"], IgnoreCase -> True],
+    False
+  ];
+  
+  contextAnalysis = <|
+    "hasRecentHistory" -> Length[recentHistory] > 0,
+    "historyLength" -> Length[recentHistory],
+    "topicContinuity" -> topicOverlap,
+    "referencesHistory" -> referenceDetection,
+    "contextRelevance" -> Max[topicOverlap, If[referenceDetection, 0.8, 0.1]],
+    "recommendMemoryUsage" -> topicOverlap > $MemoryConfiguration["contextRelevanceThreshold"] || referenceDetection,
+    "recentTopics" -> If[Length[recentHistory] > 0, 
+                        Flatten[#["topics"] & /@ recentHistory], {}],
+    "sessionContinuity" -> $ConversationContext["totalInteractions"] > 0
+  |>;
+  
+  contextAnalysis
+];
+
+(* Build LLMGraph with conversation memory integration *)
+BuildMemoryEnhancedLLMGraph[inputData_Association, contextAnalysis_Association] := Module[{memoryNodes, enhancedGraph, contextPrompt, recentHistory},
+  
+  (* Initialize prerequisites *)
+  If[!$ToolsInitialized, InitializeToolsIntegration[]];
+  If[$MasterLLMHierarchy === None, InitializeLLMHierarchy[]];
+  If[!$MemorySystemInitialized, InitializeMemorySystem[]];
+  
+  (* Start with tool-enhanced graph *)
+  enhancedGraph = BuildToolEnhancedLLMGraph[inputData];
+  
+  (* Add memory context if relevant *)
+  If[contextAnalysis["recommendMemoryUsage"] && contextAnalysis["hasRecentHistory"],
+    recentHistory = RetrieveConversationHistory[3]; (* Get last 3 interactions for context *)
+    
+    (* Create context summary *)
+    contextPrompt = "Previous conversation context:\n" <>
+      StringRiffle[
+        Map[Function[entry,
+          "• " <> DateString[entry["timestamp"], "HH:MM"] <> ": " <>
+          If[entry["inputSummary"]["textInput"] != "", 
+            StringTake[entry["inputSummary"]["textInput"], UpTo[100]], 
+            "Multi-modal input (" <> StringRiffle[entry["inputSummary"]["inputTypes"], ", "] <> ")"]
+        ], recentHistory], "\n"] <>
+      "\n\nCurrent query builds on this context. Consider previous interactions when responding.";
+    
+    (* Add memory-enhanced master coordination *)
+    If[enhancedGraph =!= None,
+      (* Enhance existing graph with memory context *)
+      enhancedGraph = enhancedGraph /. 
+        ("masterSynthesis" -> masterFunc_) :> 
+        ("memoryEnhancedSynthesis" -> LLMFunction[
+          contextPrompt <> "\n\nNow coordinate the following analyses with conversation context:\n" <>
+          "Current input: " <> ToString[inputData],
+          LLMEvaluator -> $MasterLLMHierarchy["masterLLM"]
+        ]),
+      
+      (* Create memory-only graph if no tools/enhanced graph *)
+      enhancedGraph = LLMGraph[{
+        "contextAnalysis" -> LLMFunction[
+          contextPrompt <> "\n\nAnalyze current input: " <> ToString[inputData],
+          LLMEvaluator -> $MasterLLMHierarchy["masterLLM"]
+        ]
+      }]
+    ]
+  ];
+  
+  enhancedGraph
+];
+
+(* Process input with conversation context and memory *)
+ProcessWithMemory[inputData_Association] := Module[{contextAnalysis, memoryGraph, result},
+  
+  (* Initialize if needed *)
+  If[!$MemorySystemInitialized, InitializeMemorySystem[]];
+  
+  (* Analyze conversation context *)
+  contextAnalysis = AnalyzeConversationContext[inputData];
+  
+  (* Build memory-enhanced graph *)
+  memoryGraph = BuildMemoryEnhancedLLMGraph[inputData, contextAnalysis];
+  
+  (* Process with memory enhancement *)
+  result = If[memoryGraph =!= None,
+    Catch[
+      Module[{graphResult, enhancedResponse},
+        (* Execute memory-enhanced graph *)
+        graphResult = memoryGraph[inputData];
+        
+        (* Get enhanced response *)
+        enhancedResponse = Which[
+          KeyExistsQ[graphResult, "memoryEnhancedSynthesis"], graphResult["memoryEnhancedSynthesis"],
+          KeyExistsQ[graphResult, "contextAnalysis"], graphResult["contextAnalysis"],
+          KeyExistsQ[graphResult, "toolEnhancedSynthesis"], graphResult["toolEnhancedSynthesis"],
+          True, CoordinateToolResults[
+            Select[graphResult, AssociationQ[#] && KeyExistsQ[#, "tool"] &],
+            Select[graphResult, !AssociationQ[#] || !KeyExistsQ[#, "tool"] &]
+          ]
+        ];
+        
+        <|
+          "rawResponse" -> enhancedResponse,
+          "formattedResponse" -> enhancedResponse,
+          "method" -> "MemoryEnhancedLLMGraph",
+          "contextUsed" -> contextAnalysis["recommendMemoryUsage"],
+          "contextRelevance" -> contextAnalysis["contextRelevance"],
+          "memoryEntries" -> contextAnalysis["historyLength"],
+          "sessionContinuity" -> contextAnalysis["sessionContinuity"],
+          "processedAt" -> Now,
+          "memoryEnhanced" -> True
+        |>
+      ],
+      _,
+      <|
+        "rawResponse" -> "Memory-enhanced processing temporarily unavailable.",
+        "formattedResponse" -> "Conversation context system is initializing. Please try again.",
+        "method" -> "FallbackMemoryProcessing",
+        "memoryEnhanced" -> False,
+        "error" -> True
+      |>
+    ],
+    
+    (* Fallback to regular tool-enhanced processing *)
+    Module[{fallbackResult},
+      fallbackResult = ProcessWithTools[inputData];
+      fallbackResult["method"] = "FallbackToTools";
+      fallbackResult["memoryEnhanced"] = False;
+      fallbackResult
+    ]
+  ];
+  
+  (* Store this interaction in memory *)
+  StoreConversationMemory[inputData, result];
+  
+  result
+];
+
+(* Manage and optimize conversation context *)
+ManageConversationContext[interactions_List] := Module[{contextOptimization, topicAnalysis, memoryPruning},
+  
+  (* Analyze conversation topics and patterns *)
+  topicAnalysis = <|
+    "dominantTopics" -> Commonest[Flatten[#["topics"] & /@ interactions]],
+    "topicDistribution" -> Counts[Flatten[#["topics"] & /@ interactions]],
+    "averageInteractionGap" -> If[Length[interactions] > 1,
+      Mean[Differences[#["timestamp"] & /@ interactions]], 0],
+    "multiModalUsage" -> Mean[Length[#["inputSummary"]["inputTypes"]] & /@ interactions]
+  |>;
+  
+  (* Optimize memory weights based on relevance *)
+  memoryPruning = Map[Function[interaction,
+    interaction["contextRelevance"] = 
+      Which[
+        MemberQ[topicAnalysis["dominantTopics"], First[interaction["topics"]]], 1.0,
+        interaction["timestamp"] > DatePlus[Now, Quantity[-7, "Days"]], 0.8,
+        interaction["timestamp"] > DatePlus[Now, Quantity[-14, "Days"]], 0.6,
+        True, 0.4
+      ];
+    interaction
+  ], interactions];
+  
+  contextOptimization = <|
+    "totalInteractions" -> Length[interactions],
+    "topicAnalysis" -> topicAnalysis,
+    "memoryOptimized" -> Length[memoryPruning],
+    "recommendedRetention" -> Select[memoryPruning, #["contextRelevance"] > 0.5 &],
+    "optimizationTime" -> Now
+  |>;
+  
+  (* Update global context *)
+  $ConversationContext["contextSummary"] = 
+    "Session focus: " <> StringRiffle[Take[topicAnalysis["dominantTopics"], UpTo[3]], ", "];
+  
+  contextOptimization
+];
+
+(* Create conversation summary for context optimization *)
+SummarizeConversationMemory[memoryEntries_List] := Module[{summary, topicSummary, interactionSummary},
+  
+  If[Length[memoryEntries] == 0, Return["No conversation history available."]];
+  
+  (* Create topic-based summary *)
+  topicSummary = StringRiffle[
+    Map[Function[topic,
+      topic <> " (" <> ToString[Count[Flatten[#["topics"] & /@ memoryEntries], topic]] <> " interactions)"
+    ], Commonest[Flatten[#["topics"] & /@ memoryEntries], UpTo[5]]], ", "];
+  
+  (* Create interaction summary *)
+  interactionSummary = "Total interactions: " <> ToString[Length[memoryEntries]] <>
+    ", Multi-modal usage: " <> ToString[Round[100 * Mean[Length[#["inputSummary"]["inputTypes"]] & /@ memoryEntries]]] <> "%";
+  
+  summary = "Conversation Summary:\n" <>
+    "• Topics discussed: " <> topicSummary <> "\n" <>
+    "• " <> interactionSummary <> "\n" <>
+    "• Time span: " <> DateString[Min[#["timestamp"] & /@ memoryEntries]] <> " to " <>
+    DateString[Max[#["timestamp"] & /@ memoryEntries]] <> "\n" <>
+    "• Session continuity: Active multi-modal conversation with context awareness";
+  
+  summary
+];
+
+(* Helper function to summarize old memory entries *)
+SummarizeOldMemoryEntries[] := Module[{oldEntries, summary},
+  
+  (* Get entries older than 2 weeks *)
+  oldEntries = Select[$ConversationMemory, 
+    #["timestamp"] < DatePlus[Now, Quantity[-14, "Days"]] &];
+  
+  If[Length[oldEntries] > 0,
+    summary = SummarizeConversationMemory[oldEntries];
+    
+    (* Store summary and remove old entries *)
+    $ConversationContext["historicalSummary"] = summary;
+    $ConversationMemory = Select[$ConversationMemory,
+      #["timestamp"] >= DatePlus[Now, Quantity[-14, "Days"]] &];
+    
+    Print["Summarized " <> ToString[Length[oldEntries]] <> " old memory entries for optimization."];
+  ];
+];
+
 (* Step 1: Basic web form interface for multi-modal inputs *)
 CreateWebInterface[] := FormPage[
   {
@@ -1882,10 +2313,10 @@ ProcessUserInput[data_Association] := Module[
     "eventContent" -> If[eventAnalysis =!= None, eventAnalysis["combinedDescription"], ""]
   |>;
   
-  (* Generate AI response if we have input - Step 9: Use Tool-Enhanced LLMGraph *)
+  (* Generate AI response if we have input - Step 10: Use Memory-Enhanced Processing *)
   llmResponse = If[hasInput,
     Catch[
-      ProcessWithTools[inputDataForLLM],
+      ProcessWithMemory[inputDataForLLM],
       _, 
       <|"rawResponse" -> "LLM processing temporarily unavailable. Please ensure API keys are configured.", 
         "status" -> "error"|>
@@ -1896,7 +2327,7 @@ ProcessUserInput[data_Association] := Module[
   (* Format result with LLM integration *)
   result = Column[{
     Style["Multi-Modal LLM Assistant", "Title"],
-    Style["Step 9: LLMGraph Tools Integration with Wolfram Computational Engine", "Subtitle", Blue],
+    Style["Step 10: Memory Management & Conversation Context with Persistent Learning", "Subtitle", Blue],
     "",
     
     (* Input Summary Section *)
@@ -2008,8 +2439,8 @@ ProcessUserInput[data_Association] := Module[
     
     "",
     (* Status Section *)
-    Style["Step 9 Complete: LLMGraph Tools Integration with Wolfram Computational Engine Active", "Text", Green],
-    Style["Next: Steps 10-12 will add memory management, RAG capabilities, and advanced features", "Text", Blue]
+    Style["Step 10 Complete: Memory Management & Conversation Context with Persistent Learning Active", "Text", Green],
+    Style["Next: Steps 11-12 will add RAG capabilities and advanced context optimization", "Text", Blue]
   }];
   
   (* Return formatted result *)
