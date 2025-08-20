@@ -37,6 +37,12 @@ FetchWebpageContent::usage = "FetchWebpageContent[url] fetches and extracts cont
 ParseHTMLContent::usage = "ParseHTMLContent[html] parses HTML content and extracts text and metadata";
 ValidateURL::usage = "ValidateURL[url] validates URL format and accessibility";
 
+(* Public function declarations - Step 7: Keyboard/Mouse Event Processing *)
+ProcessEventInput::usage = "ProcessEventInput[eventData] processes keyboard/mouse event data with pattern analysis";
+ParseKeyboardEvents::usage = "ParseKeyboardEvents[eventText] parses keyboard event descriptions and sequences";
+ParseMouseEvents::usage = "ParseMouseEvents[eventText] parses mouse event descriptions and interactions";
+AnalyzeEventPatterns::usage = "AnalyzeEventPatterns[events] analyzes user interaction patterns from events";
+
 Begin["`Private`"];
 
 (* Step 2: LLM Configuration and Initialization *)
@@ -94,6 +100,11 @@ CreateLLMPrompt[inputData_Association] := Module[{prompt, sections},
   (* Add webpage content section *)
   If[KeyExistsQ[inputData, "webpageContent"] && inputData["webpageContent"] != "",
     AppendTo[sections, "Webpage Content: " <> inputData["webpageContent"]]
+  ];
+  
+  (* Add event content section *)
+  If[KeyExistsQ[inputData, "eventContent"] && inputData["eventContent"] != "",
+    AppendTo[sections, "User Events: " <> inputData["eventContent"]]
   ];
   
   (* Construct final prompt *)
@@ -704,6 +715,256 @@ ProcessWebpageInput[url_String] := Module[{validationResult, fetchResult, parseR
   |>
 ];
 
+(* Step 7: Keyboard/Mouse Event Processing Functions *)
+
+(* Parse keyboard event descriptions and sequences *)
+ParseKeyboardEvents[eventText_String] := Module[{events, keyEvents, patterns},
+  (* Extract keyboard-related events from text *)
+  events = Catch[
+    Module[{keyWords, sequences, pressEvents, releaseEvents, combinationEvents},
+      (* Look for keyboard-related keywords *)
+      keyWords = {"key", "press", "release", "type", "keyboard", "ctrl", "alt", "shift", "enter", "space", "tab", "delete", "backspace", "arrow", "function"};
+      
+      (* Extract key press patterns *)
+      pressEvents = StringCases[eventText, 
+        RegularExpression["(?i)(press|pressed|pressing|hit|typed?)\\s+(\\w+|f\\d+|ctrl\\+\\w+|alt\\+\\w+|shift\\+\\w+)"] -> {$1, $2}, 
+        IgnoreCase -> True
+      ];
+      
+      (* Extract key sequences *)
+      sequences = StringCases[eventText,
+        RegularExpression["(?i)(ctrl|alt|shift)\\s*\\+\\s*(\\w+)"] -> {$1, $2},
+        IgnoreCase -> True
+      ];
+      
+      (* Extract typing events *)
+      combinationEvents = StringCases[eventText,
+        RegularExpression["(?i)typed?\\s+[\"']([^\"']+)[\"']"] -> "$1",
+        IgnoreCase -> True
+      ];
+      
+      <|
+        "pressEvents" -> pressEvents,
+        "sequences" -> sequences,
+        "typedText" -> combinationEvents,
+        "hasKeyboardEvents" -> (Length[pressEvents] > 0 || Length[sequences] > 0 || Length[combinationEvents] > 0),
+        "eventCount" -> Length[pressEvents] + Length[sequences] + Length[combinationEvents],
+        "method" -> "KeyboardEventParsing"
+      |>
+    ],
+    _,
+    <|
+      "pressEvents" -> {},
+      "sequences" -> {},
+      "typedText" -> {},
+      "hasKeyboardEvents" -> False,
+      "eventCount" -> 0,
+      "method" -> "KeyboardEventParsing"
+    |>
+  ];
+  
+  events
+];
+
+(* Parse mouse event descriptions and interactions *)
+ParseMouseEvents[eventText_String] := Module[{events, mouseEvents, patterns},
+  (* Extract mouse-related events from text *)
+  events = Catch[
+    Module[{mouseWords, clickEvents, moveEvents, scrollEvents},
+      (* Look for mouse-related keywords *)
+      mouseWords = {"click", "mouse", "button", "scroll", "drag", "move", "hover", "right-click", "double-click", "wheel"};
+      
+      (* Extract click events *)
+      clickEvents = StringCases[eventText,
+        RegularExpression["(?i)(click|clicked|clicking|double[\\s-]?click|right[\\s-]?click)\\s+(on\\s+)?(\\w+|at\\s+\\([0-9,\\s]+\\))"] -> {$1, $3},
+        IgnoreCase -> True
+      ];
+      
+      (* Extract movement events *)
+      moveEvents = StringCases[eventText,
+        RegularExpression["(?i)(move|moved|moving|drag|dragged|dragging)\\s+(to\\s+|from\\s+)?(\\w+|\\([0-9,\\s]+\\))"] -> {$1, $3},
+        IgnoreCase -> True
+      ];
+      
+      (* Extract scroll events *)
+      scrollEvents = StringCases[eventText,
+        RegularExpression["(?i)(scroll|scrolled|scrolling)\\s+(up|down|left|right)"] -> {$1, $2},
+        IgnoreCase -> True
+      ];
+      
+      <|
+        "clickEvents" -> clickEvents,
+        "moveEvents" -> moveEvents,
+        "scrollEvents" -> scrollEvents,
+        "hasMouseEvents" -> (Length[clickEvents] > 0 || Length[moveEvents] > 0 || Length[scrollEvents] > 0),
+        "eventCount" -> Length[clickEvents] + Length[moveEvents] + Length[scrollEvents],
+        "method" -> "MouseEventParsing"
+      |>
+    ],
+    _,
+    <|
+      "clickEvents" -> {},
+      "moveEvents" -> {},
+      "scrollEvents" -> {},
+      "hasMouseEvents" -> False,
+      "eventCount" -> 0,
+      "method" -> "MouseEventParsing"
+    |>
+  ];
+  
+  events
+];
+
+(* Analyze user interaction patterns from events *)
+AnalyzeEventPatterns[keyboardEvents_, mouseEvents_] := Module[{patterns, analysis},
+  (* Analyze interaction patterns *)
+  analysis = Catch[
+    Module[{totalEvents, eventTypes, interactionComplexity, patternDescription},
+      totalEvents = keyboardEvents["eventCount"] + mouseEvents["eventCount"];
+      
+      eventTypes = {};
+      If[keyboardEvents["hasKeyboardEvents"], AppendTo[eventTypes, "keyboard"]];
+      If[mouseEvents["hasMouseEvents"], AppendTo[eventTypes, "mouse"]];
+      
+      (* Determine interaction complexity *)
+      interactionComplexity = Which[
+        totalEvents == 0, "none",
+        totalEvents <= 3, "simple",
+        totalEvents <= 10, "moderate",
+        True, "complex"
+      ];
+      
+      (* Generate pattern description *)
+      patternDescription = "";
+      If[keyboardEvents["hasKeyboardEvents"],
+        patternDescription = "Keyboard interactions detected: " <> 
+          ToString[keyboardEvents["eventCount"]] <> " events";
+      ];
+      
+      If[mouseEvents["hasMouseEvents"],
+        If[patternDescription != "",
+          patternDescription = patternDescription <> ". Mouse interactions detected: " <> 
+            ToString[mouseEvents["eventCount"]] <> " events",
+          patternDescription = "Mouse interactions detected: " <> 
+            ToString[mouseEvents["eventCount"]] <> " events"
+        ]
+      ];
+      
+      If[patternDescription == "",
+        patternDescription = "No keyboard or mouse events detected"
+      ];
+      
+      <|
+        "totalEvents" -> totalEvents,
+        "eventTypes" -> eventTypes,
+        "complexity" -> interactionComplexity,
+        "description" -> patternDescription,
+        "hasPatterns" -> (totalEvents > 0),
+        "method" -> "EventPatternAnalysis"
+      |>
+    ],
+    _,
+    <|
+      "totalEvents" -> 0,
+      "eventTypes" -> {},
+      "complexity" -> "none",
+      "description" -> "Event pattern analysis failed",
+      "hasPatterns" -> False,
+      "method" -> "EventPatternAnalysis"
+    |>
+  ];
+  
+  analysis
+];
+
+(* Comprehensive event processing combining keyboard and mouse analysis *)
+ProcessEventInput[eventText_String] := Module[{keyboardResult, mouseResult, patternResult, combinedDescription},
+  
+  (* Parse keyboard events *)
+  keyboardResult = ParseKeyboardEvents[eventText];
+  
+  (* Parse mouse events *)
+  mouseResult = ParseMouseEvents[eventText];
+  
+  (* Analyze patterns *)
+  patternResult = AnalyzeEventPatterns[keyboardResult, mouseResult];
+  
+  (* Create combined description *)
+  combinedDescription = "";
+  
+  (* Add pattern analysis *)
+  If[patternResult["hasPatterns"],
+    combinedDescription = patternResult["description"];
+  ];
+  
+  (* Add specific event details *)
+  If[keyboardResult["hasKeyboardEvents"],
+    Module[{keyDetails},
+      keyDetails = "";
+      
+      (* Add press events *)
+      If[Length[keyboardResult["pressEvents"]] > 0,
+        keyDetails = keyDetails <> " Key presses: " <> 
+          StringRiffle[Map[Last, keyboardResult["pressEvents"]], ", "];
+      ];
+      
+      (* Add typed text *)
+      If[Length[keyboardResult["typedText"]] > 0,
+        keyDetails = keyDetails <> " Typed text: \"" <> 
+          StringRiffle[keyboardResult["typedText"], "\", \""] <> "\"";
+      ];
+      
+      If[keyDetails != "",
+        If[combinedDescription != "",
+          combinedDescription = combinedDescription <> "." <> keyDetails,
+          combinedDescription = StringTrim[keyDetails]
+        ]
+      ]
+    ]
+  ];
+  
+  (* Add mouse event details *)
+  If[mouseResult["hasMouseEvents"],
+    Module[{mouseDetails},
+      mouseDetails = "";
+      
+      (* Add click events *)
+      If[Length[mouseResult["clickEvents"]] > 0,
+        mouseDetails = mouseDetails <> " Mouse clicks: " <> 
+          StringRiffle[Map[First, mouseResult["clickEvents"]], ", "];
+      ];
+      
+      (* Add movement events *)
+      If[Length[mouseResult["moveEvents"]] > 0,
+        mouseDetails = mouseDetails <> " Mouse movements: " <> 
+          StringRiffle[Map[First, mouseResult["moveEvents"]], ", "];
+      ];
+      
+      If[mouseDetails != "",
+        If[combinedDescription != "",
+          combinedDescription = combinedDescription <> "." <> mouseDetails,
+          combinedDescription = StringTrim[mouseDetails]
+        ]
+      ]
+    ]
+  ];
+  
+  (* If no useful information found *)
+  If[combinedDescription == "",
+    combinedDescription = "Event input provided but no recognizable keyboard or mouse events found"
+  ];
+  
+  (* Return comprehensive analysis *)
+  <|
+    "combinedDescription" -> combinedDescription,
+    "keyboardResult" -> keyboardResult,
+    "mouseResult" -> mouseResult,
+    "patternResult" -> patternResult,
+    "hasContent" -> (patternResult["hasPatterns"]),
+    "processedAt" -> Now
+  |>
+];
+
 (* Step 1: Basic web form interface for multi-modal inputs *)
 CreateWebInterface[] := FormPage[
   {
@@ -731,6 +992,11 @@ CreateWebInterface[] := FormPage[
       "Interpreter" -> "URL", 
       "Control" -> InputField[Placeholder -> "https://example.com"], 
       "Help" -> "Enter a webpage URL to analyze"
+    |>,
+    "eventInput" -> <|
+      "Interpreter" -> "String", 
+      "Control" -> InputField[Placeholder -> "Describe keyboard/mouse events or paste event logs...", "", TextArea -> True], 
+      "Help" -> "Describe keyboard/mouse interactions or paste event logs for analysis"
     |>
   },
   ProcessUserInput,
@@ -744,8 +1010,8 @@ CreateWebInterface[] := FormPage[
 
 (* Process the form data - Enhanced with Step 2 LLM Integration *)
 ProcessUserInput[data_Association] := Module[
-  {result, textData, imageData, audioData, videoData, urlData, 
-   inputDataForLLM, textAnalysis, imageAnalysis, audioAnalysis, llmResponse, hasInput},
+  {result, textData, imageData, audioData, videoData, urlData, eventData,
+   inputDataForLLM, textAnalysis, imageAnalysis, audioAnalysis, videoAnalysis, webpageAnalysis, eventAnalysis, llmResponse, hasInput},
   
   (* Extract form data *)
   textData = Lookup[data, "textInput", ""];
@@ -753,11 +1019,12 @@ ProcessUserInput[data_Association] := Module[
   audioData = Lookup[data, "audioUpload", None];
   videoData = Lookup[data, "videoUpload", None];
   urlData = Lookup[data, "webpageURL", None];
+  eventData = Lookup[data, "eventInput", ""];
   
   (* Check if we have any meaningful input *)
   hasInput = (textData != "") || (imageData =!= None) || 
              (audioData =!= None) || (videoData =!= None) || 
-             (urlData =!= None);
+             (urlData =!= None) || (eventData != "");
   
   (* Process text input with enhanced analysis *)
   textAnalysis = If[textData != "", ProcessTextInput[textData], None];
@@ -774,13 +1041,17 @@ ProcessUserInput[data_Association] := Module[
   (* Step 6: Process webpage URL with content extraction *)
   webpageAnalysis = If[urlData =!= None && ToString[urlData] != "", ProcessWebpageInput[ToString[urlData]], None];
   
+  (* Step 7: Process keyboard/mouse event input *)
+  eventAnalysis = If[eventData != "", ProcessEventInput[eventData], None];
+  
   (* Prepare input data for LLM processing *)
   inputDataForLLM = <|
     "textInput" -> textData,
     "imageDescription" -> If[imageAnalysis =!= None, imageAnalysis["combinedDescription"], ""],
     "audioTranscript" -> If[audioAnalysis =!= None, audioAnalysis["combinedDescription"], ""],
     "videoContent" -> If[videoAnalysis =!= None, videoAnalysis["combinedDescription"], ""],
-    "webpageContent" -> If[webpageAnalysis =!= None, webpageAnalysis["combinedDescription"], ""]
+    "webpageContent" -> If[webpageAnalysis =!= None, webpageAnalysis["combinedDescription"], ""],
+    "eventContent" -> If[eventAnalysis =!= None, eventAnalysis["combinedDescription"], ""]
   |>;
   
   (* Generate AI response if we have input *)
@@ -878,6 +1149,20 @@ ProcessUserInput[data_Association] := Module[
           }], 
           Nothing
         ],
+        If[eventData != "", 
+          Column[{
+            "Event Input: ",
+            If[eventAnalysis =!= None,
+              Column[{
+                Style["Events: " <> eventAnalysis["combinedDescription"], "Text", Gray],
+                Style["Pattern Analysis: " <> eventAnalysis["patternResult"]["complexity"] <> " interaction complexity", "Text", Gray],
+                Style["Event Count: " <> ToString[eventAnalysis["patternResult"]["totalEvents"]], "Text", Gray]
+              }],
+              Style["Event processing in progress...", "Text", Gray]
+            ]
+          }], 
+          Nothing
+        ],
         ""
       }],
       Nothing
@@ -895,8 +1180,8 @@ ProcessUserInput[data_Association] := Module[
     
     "",
     (* Status Section *)
-    Style["Step 6 Complete: Web Content Processing & Scraping Active", "Text", Green],
-    Style["Next: Step 7 will add keyboard/mouse event processing", "Text", Blue]
+    Style["Step 7 Complete: Keyboard/Mouse Event Processing Active", "Text", Green],
+    Style["Next: Steps 8-12 will add advanced LLM architecture (Master-Slave, LLMGraph, tools, memory, RAG)", "Text", Blue]
   }];
   
   (* Return formatted result *)
