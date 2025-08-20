@@ -11,8 +11,8 @@ This is a multi-modal LLM assistant built entirely in Wolfram Language, designed
 ### Running Tests and Implementation
 
 ```mathematica
-(* Execute current implementation with tests - Step 8 is latest *)
-Get["RunStep8.wl"]
+(* Execute current implementation with tests - Step 9 is latest *)
+Get["RunStep9.wl"]
 
 (* Run individual step tests *)
 Get["tests/Step1Test.wl"]
@@ -39,6 +39,9 @@ Step7Test`RunStep7Tests[]
 Get["tests/Step8Test.wl"]
 Step8Test`RunStep8Tests[]
 
+Get["tests/Step9Test.wl"]
+Step9Test`RunStep9Tests[]
+
 (* Test LLM functionality manually *)
 MultiModalApp`InitializeMasterLLM[]
 MultiModalApp`ProcessTextWithLLM[<|"textInput" -> "Hello AI assistant"|>]
@@ -46,6 +49,11 @@ MultiModalApp`ProcessTextWithLLM[<|"textInput" -> "Hello AI assistant"|>]
 (* Test advanced LLM hierarchy (Step 8) *)
 MultiModalApp`InitializeLLMHierarchy[]
 MultiModalApp`ProcessWithLLMGraph[<|"textInput" -> "Test hierarchical processing"|>]
+
+(* Test tools integration (Step 9) *)
+MultiModalApp`InitializeToolsIntegration[]
+MultiModalApp`ExecuteComputationalTask["solve", {"x^2 - 4"}]
+MultiModalApp`ProcessWithTools[<|"textInput" -> "Calculate mean of 1,2,3,4,5"|>]
 
 (* Deploy to Wolfram Cloud *)
 MultiModalApp`DeployApp[]
@@ -107,8 +115,9 @@ SaherApp/
 │   ├── Step5Test.wl              # Video processing tests
 │   ├── Step6Test.wl              # Web content processing tests
 │   ├── Step7Test.wl              # Event processing tests
-│   └── Step8Test.wl              # Advanced LLM architecture tests
-├── RunStep1.wl through RunStep8.wl  # Step execution scripts
+│   ├── Step8Test.wl              # Advanced LLM architecture tests
+│   └── Step9Test.wl              # Tools integration tests
+├── RunStep1.wl through RunStep9.wl  # Step execution scripts
 └── CLAUDE.md                     # This documentation file
 ```
 
@@ -178,8 +187,16 @@ The system follows a standardized input → text conversion → LLM processing w
 - `ProcessWithLLMGraph[inputData]`: Process input through complete LLMGraph hierarchy
 - `CoordinateSlaveResponses[responses]`: Coordinate and synthesize responses from multiple slave LLMs
 
+**Step 9 - LLMGraph Tools Integration**:
+- `InitializeToolsIntegration[]`: Initialize comprehensive Wolfram computational toolkit
+- `CreateWolframToolKit[]`: Create 12+ specialized computational tools across 7 categories
+- `ExecuteComputationalTask[taskType, parameters]`: Execute individual computational tasks
+- `BuildToolEnhancedLLMGraph[inputData]`: Build LLMGraph with integrated computational tools
+- `ProcessWithTools[inputData]`: Process input through tool-enhanced LLMGraph orchestration
+- `CoordinateToolResults[toolResults, llmResponses]`: Coordinate computational and AI results
+
 **Future Steps**:
-- Steps 9-12: LLMGraph tools integration, memory management, RAG implementation
+- Steps 10-12: Memory management, conversation context, RAG implementation
 - Steps 13-16: Advanced features (async processing, modularity, error handling, security)
 - Steps 17-20: Testing and optimization
 
@@ -275,6 +292,18 @@ allPassed = And @@ testResults;
 - Hierarchical integration with multi-modal pipeline
 - Advanced error handling across LLM architecture
 
+**Step 9 Tests** (`Step9Test`):
+- Wolfram tools integration initialization
+- Comprehensive tool kit creation (Mathematics, Statistics, TextAnalysis, Units, DateTime, Visualization, StringProcessing)
+- Individual computational task execution and validation
+- Mathematical computation tools (solve, integrate, differentiate, factor, simplify)
+- Statistical analysis tools (summary statistics, correlation analysis)
+- Text analysis computational tools (word count, sentiment analysis)
+- Tool-enhanced LLMGraph construction and orchestration
+- End-to-end tool-enhanced processing pipeline
+- Coordination of computational and LLM results
+- Advanced error handling across tools integration
+
 ## Implementation Notes
 
 ### Package Loading Pattern
@@ -313,6 +342,7 @@ EndPackage[];
 ✅ **Step 5**: Video Processing with Transcription & Frame Analysis - Complete
 ✅ **Step 6**: Web Content Processing & Scraping - Complete
 ✅ **Step 7**: Keyboard/Mouse Event Processing - Complete
-🔄 **Step 8**: Advanced LLM Architecture (Master-Slave Setup) - Current
+✅ **Step 8**: Advanced LLM Architecture (Master-Slave Setup) - Complete
+🔄 **Step 9**: LLMGraph Tools Integration with Wolfram Computational Engine - Current
 
-The system now handles all major multi-modal inputs (text, image, audio, video, web content, and user events) through a comprehensive web interface with testing infrastructure. Step 8 introduces advanced LLM architecture with Master-Slave hierarchy using LLMGraph orchestration for specialized domain processing. Steps 9-20 will add tools integration, memory management, RAG, async processing, security, and optimization.
+The system now combines multi-modal AI processing with powerful Wolfram computational capabilities. Step 9 integrates a comprehensive toolkit of 12+ specialized computational tools across 7 categories (Mathematics, Statistics, TextAnalysis, Units, DateTime, Visualization, StringProcessing), enabling the LLM hierarchy to perform precise calculations, data analysis, and computational tasks alongside intelligent content analysis. Steps 10-20 will add memory management, RAG, async processing, security, and optimization.

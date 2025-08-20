@@ -51,6 +51,14 @@ DelegateTasks::usage = "DelegateTasks[tasks] delegates tasks to appropriate spec
 ProcessWithLLMGraph::usage = "ProcessWithLLMGraph[inputData] processes multi-modal input using LLMGraph orchestration";
 CoordinateSlaveResponses::usage = "CoordinateSlaveResponses[responses] coordinates and synthesizes slave LLM responses";
 
+(* Public function declarations - Step 9: LLMGraph Tools Integration *)
+InitializeToolsIntegration::usage = "InitializeToolsIntegration[] initializes Wolfram computational tools for LLM access";
+CreateWolframToolKit::usage = "CreateWolframToolKit[] creates comprehensive Wolfram computational tool functions";
+BuildToolEnhancedLLMGraph::usage = "BuildToolEnhancedLLMGraph[inputData] builds LLMGraph with integrated computational tools";
+ProcessWithTools::usage = "ProcessWithTools[inputData] processes input through tool-enhanced LLMGraph";
+ExecuteComputationalTask::usage = "ExecuteComputationalTask[taskType, parameters] executes Wolfram computational tasks";
+CoordinateToolResults::usage = "CoordinateToolResults[toolResults, llmResponses] coordinates computational and LLM results";
+
 Begin["`Private`"];
 
 (* Step 2: LLM Configuration and Initialization *)
@@ -1343,6 +1351,448 @@ CoordinateSlaveResponses[slaveResponses_Association] := Module[{synthesis, respo
   responseText
 ];
 
+(* Step 9: LLMGraph Tools Integration *)
+
+(* Global variables for tools integration *)
+$WolframToolKit = <||>;
+$ToolsInitialized = False;
+$ToolExecutionCache = <||>;
+
+(* Initialize Wolfram computational tools for LLM access *)
+InitializeToolsIntegration[] := Module[{toolKit, initResult},
+  
+  (* Create comprehensive Wolfram tool kit *)
+  toolKit = CreateWolframToolKit[];
+  
+  (* Store globally *)
+  $WolframToolKit = toolKit;
+  $ToolsInitialized = True;
+  
+  initResult = <|
+    "toolsAvailable" -> Length[Keys[toolKit]],
+    "categories" -> Keys[GroupBy[Values[toolKit], #["category"] &]],
+    "initialized" -> True,
+    "initTime" -> Now
+  |>;
+  
+  Print[Style["✓ Wolfram Tools Integration initialized successfully", Green]];
+  Print["  Available tool categories: " <> StringRiffle[initResult["categories"], ", "]];
+  Print["  Total tools: " <> ToString[initResult["toolsAvailable"]]];
+  
+  initResult
+];
+
+(* Create comprehensive Wolfram computational tool functions *)
+CreateWolframToolKit[] := Module[{tools},
+  
+  tools = <|
+    (* Mathematical Computation Tools *)
+    "solve" -> <|
+      "function" -> Function[{equation}, 
+        Catch[Solve[ToExpression[equation], x], _, "Could not solve equation"]],
+      "description" -> "Solve mathematical equations",
+      "category" -> "Mathematics",
+      "parameters" -> {"equation"}
+    |>,
+    
+    "integrate" -> <|
+      "function" -> Function[{expression, variable}, 
+        Catch[Integrate[ToExpression[expression], ToExpression[variable]], _, "Could not integrate"]],
+      "description" -> "Compute definite and indefinite integrals", 
+      "category" -> "Mathematics",
+      "parameters" -> {"expression", "variable"}
+    |>,
+    
+    "differentiate" -> <|
+      "function" -> Function[{expression, variable},
+        Catch[D[ToExpression[expression], ToExpression[variable]], _, "Could not differentiate"]],
+      "description" -> "Compute derivatives of mathematical expressions",
+      "category" -> "Mathematics", 
+      "parameters" -> {"expression", "variable"}
+    |>,
+    
+    "factor" -> <|
+      "function" -> Function[{expression},
+        Catch[Factor[ToExpression[expression]], _, "Could not factor expression"]],
+      "description" -> "Factor mathematical expressions",
+      "category" -> "Mathematics",
+      "parameters" -> {"expression"}
+    |>,
+    
+    "simplify" -> <|
+      "function" -> Function[{expression},
+        Catch[Simplify[ToExpression[expression]], _, "Could not simplify expression"]],
+      "description" -> "Simplify mathematical expressions",
+      "category" -> "Mathematics",
+      "parameters" -> {"expression"}
+    |>,
+    
+    (* Data Analysis Tools *)
+    "statisticsSummary" -> <|
+      "function" -> Function[{data},
+        Catch[
+          Module[{numbers},
+            numbers = ToExpression[StringSplit[data, ","]];
+            <|"mean" -> Mean[numbers], "median" -> Median[numbers], 
+              "std" -> StandardDeviation[numbers], "count" -> Length[numbers]|>
+          ], _, "Could not analyze data"
+        ]],
+      "description" -> "Compute statistical summary of numerical data",
+      "category" -> "Statistics",
+      "parameters" -> {"data"}
+    |>,
+    
+    "correlation" -> <|
+      "function" -> Function[{data1, data2},
+        Catch[
+          Module[{nums1, nums2},
+            nums1 = ToExpression[StringSplit[data1, ","]];
+            nums2 = ToExpression[StringSplit[data2, ","]];
+            Correlation[nums1, nums2]
+          ], _, "Could not compute correlation"
+        ]],
+      "description" -> "Compute correlation between two data sets",
+      "category" -> "Statistics", 
+      "parameters" -> {"data1", "data2"}
+    |>,
+    
+    (* Text Analysis Tools *)
+    "wordCount" -> <|
+      "function" -> Function[{text},
+        Catch[
+          <|"characters" -> StringLength[text], 
+            "words" -> Length[StringSplit[text]],
+            "sentences" -> Length[StringSplit[text, RegularExpression["[.!?]+"]]]|>
+        , _, "Could not analyze text"
+        ]],
+      "description" -> "Count words, characters, and sentences in text",
+      "category" -> "TextAnalysis",
+      "parameters" -> {"text"}
+    |>,
+    
+    "textSentiment" -> <|
+      "function" -> Function[{text},
+        Catch[Classify["Sentiment", text], _, "Could not analyze sentiment"]],
+      "description" -> "Analyze sentiment of text (Positive/Negative/Neutral)",
+      "category" -> "TextAnalysis",
+      "parameters" -> {"text"}
+    |>,
+    
+    (* Unit Conversion Tools *)
+    "convertUnits" -> <|
+      "function" -> Function[{quantity, fromUnit, toUnit},
+        Catch[
+          UnitConvert[Quantity[ToExpression[quantity], fromUnit], toUnit],
+          _, "Could not convert units"
+        ]],
+      "description" -> "Convert between different units of measurement",
+      "category" -> "Units",
+      "parameters" -> {"quantity", "fromUnit", "toUnit"}
+    |>,
+    
+    (* Date/Time Tools *)
+    "dateCalculation" -> <|
+      "function" -> Function[{operation, date1, date2},
+        Catch[
+          Switch[operation,
+            "difference", DateDifference[DateObject[date1], DateObject[date2]],
+            "add", DatePlus[DateObject[date1], Quantity[ToExpression[date2], "Days"]],
+            _, "Unknown operation"
+          ], _, "Could not perform date calculation"
+        ]],
+      "description" -> "Perform date calculations (difference, addition)",
+      "category" -> "DateTime",
+      "parameters" -> {"operation", "date1", "date2"}
+    |>,
+    
+    (* Plotting and Visualization *)
+    "plotFunction" -> <|
+      "function" -> Function[{expression, variable, range},
+        Catch[
+          Plot[ToExpression[expression], 
+               {ToExpression[variable], ToExpression[StringSplit[range, ","][[1]]], 
+                ToExpression[StringSplit[range, ","][[2]]]}],
+          _, "Could not create plot"
+        ]],
+      "description" -> "Create mathematical function plots",
+      "category" -> "Visualization", 
+      "parameters" -> {"expression", "variable", "range"}
+    |>,
+    
+    (* String Manipulation *)
+    "stringOperations" -> <|
+      "function" -> Function[{operation, text, parameter},
+        Catch[
+          Switch[operation,
+            "reverse", StringReverse[text],
+            "uppercase", ToUpperCase[text], 
+            "lowercase", ToLowerCase[text],
+            "length", StringLength[text],
+            "substring", StringTake[text, ToExpression[parameter]],
+            _, "Unknown string operation"
+          ], _, "Could not perform string operation"
+        ]],
+      "description" -> "Perform various string manipulation operations",
+      "category" -> "StringProcessing",
+      "parameters" -> {"operation", "text", "parameter"}
+    |>
+  |>;
+  
+  tools
+];
+
+(* Execute computational task using Wolfram tools *)
+ExecuteComputationalTask[taskType_String, parameters_List] := Module[{tool, result},
+  
+  (* Initialize tools if not done *)
+  If[!$ToolsInitialized, InitializeToolsIntegration[]];
+  
+  (* Check if tool exists *)
+  If[KeyExistsQ[$WolframToolKit, taskType],
+    tool = $WolframToolKit[taskType];
+    
+    (* Execute tool with parameters *)
+    result = Catch[
+      Apply[tool["function"], parameters],
+      _,
+      <|"error" -> "Tool execution failed", "tool" -> taskType|>
+    ];
+    
+    (* Cache result for performance *)
+    $ToolExecutionCache[{taskType, parameters}] = result;
+    
+    <|
+      "tool" -> taskType,
+      "category" -> tool["category"],
+      "result" -> result,
+      "parameters" -> parameters,
+      "executedAt" -> Now,
+      "success" -> !AssociationQ[result] || !KeyExistsQ[result, "error"]
+    |>,
+    
+    (* Tool not found *)
+    <|
+      "error" -> "Tool not found",
+      "tool" -> taskType,
+      "availableTools" -> Keys[$WolframToolKit],
+      "success" -> False
+    |>
+  ]
+];
+
+(* Build LLMGraph with integrated computational tools *)
+BuildToolEnhancedLLMGraph[inputData_Association] := Module[{toolNodes, llmNodes, enhancedGraph},
+  
+  (* Initialize tools and LLM hierarchy if not done *)
+  If[!$ToolsInitialized, InitializeToolsIntegration[]];
+  If[$MasterLLMHierarchy === None, InitializeLLMHierarchy[]];
+  
+  (* Start with basic LLMGraph nodes *)
+  llmNodes = {};
+  toolNodes = {};
+  
+  (* Add LLM analysis nodes based on input data *)
+  If[KeyExistsQ[inputData, "textInput"] && inputData["textInput"] != "",
+    AppendTo[llmNodes, 
+      "textAnalysis" -> LLMFunction[
+        "Analyze this text and identify any computational tasks: " <> inputData["textInput"],
+        LLMEvaluator -> $SpecializedSlaveLLMs["textSlave"]
+      ]
+    ];
+    
+    (* Add computational tools for text analysis *)
+    AppendTo[toolNodes,
+      "textMetrics" -> Function[{},
+        ExecuteComputationalTask["wordCount", {inputData["textInput"]}]
+      ]
+    ];
+    
+    (* Add sentiment analysis if text seems appropriate *)
+    If[StringLength[inputData["textInput"]] > 10,
+      AppendTo[toolNodes,
+        "sentimentAnalysis" -> Function[{},
+          ExecuteComputationalTask["textSentiment", {inputData["textInput"]}]
+        ]
+      ]
+    ]
+  ];
+  
+  (* Add mathematical computation detection and tools *)
+  If[KeyExistsQ[inputData, "textInput"] && 
+     StringContainsQ[inputData["textInput"], 
+       RegularExpression["\\b(solve|integrate|differentiate|calculate|compute|math)\\b"], IgnoreCase -> True],
+    
+    (* Add mathematical analysis *)
+    AppendTo[llmNodes,
+      "mathAnalysis" -> LLMFunction[
+        "Extract mathematical expressions and equations from: " <> inputData["textInput"] <> 
+        ". Available tools: solve, integrate, differentiate, factor, simplify. Format as tool requests.",
+        LLMEvaluator -> $SpecializedSlaveLLMs["textSlave"]
+      ]
+    ]
+  ];
+  
+  (* Add data analysis tools if numerical data detected *)
+  If[KeyExistsQ[inputData, "textInput"] &&
+     StringContainsQ[inputData["textInput"], 
+       RegularExpression["\\b(data|statistics|mean|median|correlation)\\b"], IgnoreCase -> True],
+    
+    AppendTo[toolNodes,
+      "dataAnalysis" -> Function[{},
+        Module[{numbers},
+          numbers = StringCases[inputData["textInput"], 
+            RegularExpression["\\d+(?:\\.\\d+)?"], IgnoreCase -> True];
+          If[Length[numbers] > 1,
+            ExecuteComputationalTask["statisticsSummary", {StringRiffle[numbers, ","]}],
+            <|"info" -> "No numerical data found for analysis"|>
+          ]
+        ]
+      ]
+    ]
+  ];
+  
+  (* Add other input type processing *)
+  If[KeyExistsQ[inputData, "imageDescription"] && inputData["imageDescription"] != "",
+    AppendTo[llmNodes,
+      "imageAnalysis" -> LLMFunction[
+        "Analyze image content and suggest computational analyses: " <> inputData["imageDescription"],
+        LLMEvaluator -> $SpecializedSlaveLLMs["imageSlave"]
+      ]
+    ]
+  ];
+  
+  (* Add master coordination node *)
+  If[Length[llmNodes] > 0 || Length[toolNodes] > 0,
+    Module[{allNodeNames, masterPrompt},
+      allNodeNames = Join[Keys[llmNodes], Keys[toolNodes]];
+      masterPrompt = "Coordinate the following analyses and computational results into a comprehensive response:\n" <>
+        StringRiffle[Map["<" <> # <> ">" &, allNodeNames], "\n"];
+      
+      AppendTo[llmNodes,
+        "toolEnhancedSynthesis" -> LLMFunction[
+          masterPrompt,
+          LLMEvaluator -> $MasterLLMHierarchy["masterLLM"]
+        ]
+      ]
+    ]
+  ];
+  
+  (* Combine all nodes *)
+  enhancedGraph = Join[llmNodes, Map[# -> #[[2]] &, toolNodes]];
+  
+  (* Create LLMGraph if we have nodes *)
+  If[Length[enhancedGraph] > 0,
+    LLMGraph[enhancedGraph],
+    None
+  ]
+];
+
+(* Process input through tool-enhanced LLMGraph *)
+ProcessWithTools[inputData_Association] := Module[{toolGraph, result, graphKey},
+  
+  (* Initialize if needed *)
+  If[!$ToolsInitialized, InitializeToolsIntegration[]];
+  If[$MasterLLMHierarchy === None, InitializeLLMHierarchy[]];
+  
+  (* Build tool-enhanced graph *)
+  toolGraph = BuildToolEnhancedLLMGraph[inputData];
+  
+  (* Execute if available *)
+  result = If[toolGraph =!= None,
+    Catch[
+      Module[{graphResult, masterResponse, toolResults, llmResults},
+        (* Execute the enhanced graph *)
+        graphResult = toolGraph[inputData];
+        
+        (* Separate tool results from LLM results *)
+        toolResults = Select[graphResult, 
+          AssociationQ[#] && KeyExistsQ[#, "tool"] &];
+        llmResults = Select[graphResult, !AssociationQ[#] || !KeyExistsQ[#, "tool"] &];
+        
+        (* Get master synthesis if available *)
+        masterResponse = If[KeyExistsQ[graphResult, "toolEnhancedSynthesis"],
+          graphResult["toolEnhancedSynthesis"],
+          CoordinateToolResults[toolResults, llmResults]
+        ];
+        
+        <|
+          "rawResponse" -> masterResponse,
+          "formattedResponse" -> masterResponse,
+          "method" -> "ToolEnhancedLLMGraph",
+          "toolsUsed" -> Keys[toolResults],
+          "toolResults" -> toolResults,
+          "llmResults" -> llmResults,
+          "processedAt" -> Now,
+          "enhanced" -> True
+        |>
+      ],
+      _,
+      <|
+        "rawResponse" -> "Tool-enhanced processing temporarily unavailable.",
+        "formattedResponse" -> "Advanced computational tools are initializing. Please try again.",
+        "method" -> "FallbackProcessing",
+        "enhanced" -> False,
+        "error" -> True
+      |>
+    ],
+    
+    (* Fallback to regular LLMGraph processing *)
+    ProcessWithLLMGraph[inputData]
+  ];
+  
+  result
+];
+
+(* Coordinate computational and LLM results *)
+CoordinateToolResults[toolResults_List, llmResponses_Association] := Module[{coordination, responseText},
+  
+  responseText = "Enhanced analysis combining AI intelligence with Wolfram computational tools:\n\n";
+  
+  (* Add LLM analyses *)
+  If[Length[Keys[llmResponses]] > 0,
+    responseText = responseText <> "**AI Analysis:**\n";
+    Do[
+      Module[{analysisName, response},
+        analysisName = key;
+        response = llmResponses[key];
+        
+        responseText = responseText <> "• " <> 
+          Switch[analysisName,
+            "textAnalysis", "Text Analysis: ",
+            "mathAnalysis", "Mathematical Analysis: ",
+            "imageAnalysis", "Image Analysis: ",
+            _, "Analysis: "
+          ] <> ToString[response] <> "\n"
+      ],
+      {key, Keys[llmResponses]}
+    ];
+    responseText = responseText <> "\n"
+  ];
+  
+  (* Add computational results *)
+  If[Length[toolResults] > 0,
+    responseText = responseText <> "**Computational Results:**\n";
+    Do[
+      Module[{toolResult},
+        toolResult = result;
+        If[AssociationQ[toolResult] && KeyExistsQ[toolResult, "tool"],
+          responseText = responseText <> "• " <> 
+            StringReplace[toolResult["tool"], "_" -> " "] <> ": " <>
+            ToString[toolResult["result"]] <> 
+            If[KeyExistsQ[toolResult, "category"], 
+              " (Category: " <> toolResult["category"] <> ")", ""] <> "\n"
+        ]
+      ],
+      {result, toolResults}
+    ];
+    responseText = responseText <> "\n"
+  ];
+  
+  responseText = responseText <> "This response integrates both artificial intelligence analysis and precise Wolfram computational results to provide comprehensive and accurate information.";
+  
+  responseText
+];
+
 (* Step 1: Basic web form interface for multi-modal inputs *)
 CreateWebInterface[] := FormPage[
   {
@@ -1432,10 +1882,10 @@ ProcessUserInput[data_Association] := Module[
     "eventContent" -> If[eventAnalysis =!= None, eventAnalysis["combinedDescription"], ""]
   |>;
   
-  (* Generate AI response if we have input - Step 8: Use LLMGraph orchestration *)
+  (* Generate AI response if we have input - Step 9: Use Tool-Enhanced LLMGraph *)
   llmResponse = If[hasInput,
     Catch[
-      ProcessWithLLMGraph[inputDataForLLM],
+      ProcessWithTools[inputDataForLLM],
       _, 
       <|"rawResponse" -> "LLM processing temporarily unavailable. Please ensure API keys are configured.", 
         "status" -> "error"|>
@@ -1446,7 +1896,7 @@ ProcessUserInput[data_Association] := Module[
   (* Format result with LLM integration *)
   result = Column[{
     Style["Multi-Modal LLM Assistant", "Title"],
-    Style["Step 8: Advanced LLM Architecture with Master-Slave Orchestration", "Subtitle", Blue],
+    Style["Step 9: LLMGraph Tools Integration with Wolfram Computational Engine", "Subtitle", Blue],
     "",
     
     (* Input Summary Section *)
@@ -1558,8 +2008,8 @@ ProcessUserInput[data_Association] := Module[
     
     "",
     (* Status Section *)
-    Style["Step 8 Complete: Advanced LLM Architecture (Master-Slave) Active", "Text", Green],
-    Style["Next: Steps 9-12 will add LLMGraph tools integration, memory management, and RAG capabilities", "Text", Blue]
+    Style["Step 9 Complete: LLMGraph Tools Integration with Wolfram Computational Engine Active", "Text", Green],
+    Style["Next: Steps 10-12 will add memory management, RAG capabilities, and advanced features", "Text", Blue]
   }];
   
   (* Return formatted result *)
